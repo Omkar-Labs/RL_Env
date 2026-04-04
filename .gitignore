@@ -1,0 +1,18 @@
+# Virtual Environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Trained model (large binary file)
+ppo_cognitive_tutor.zip
+
+# Mac system files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.resolved

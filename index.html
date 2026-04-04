@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tutor RL Control Panel</title>
+    <!-- Use Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+
+    <!-- Background Animated Elements -->
+    <div class="blob shape-1"></div>
+    <div class="blob shape-2"></div>
+    <div class="blob shape-3"></div>
+
+    <div class="container glass-panel">
+        <header>
+            <div class="icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+            </div>
+            <h1>Cognitive Tutor AI</h1>
+            <p class="subtitle">Reinforcement Learning Training Dashboard</p>
+        </header>
+
+        <main>
+            <div class="form-group">
+                <label for="timesteps">Total Training Timesteps</label>
+                <input type="number" id="timesteps" value="100000" min="1000" step="1000">
+                <p class="helper-text">Higher timesteps lead to an AI with better mastery rates.</p>
+            </div>
+
+            <button id="startTrainBtn" class="primary-btn">
+                <span class="btn-text">Start Training</span>
+                <div class="loader" id="btnLoader"></div>
+            </button>
+
+            <div id="statusBadge" class="status-badge hidden">
+                <span class="indicator"></span>
+                <p id="statusText">Ready to compute...</p>
+            </div>
+
+            <!-- Results Panel (revealed after training) -->
+            <div id="resultsPanel" class="results-panel hidden">
+                <h2 class="results-title">📊 Evaluation Results</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Avg Reward</span>
+                        <span class="stat-value" id="statAvgReward">—</span>
+                    </div>
+                    <div class="stat-card highlight">
+                        <span class="stat-label">Mastery Rate</span>
+                        <span class="stat-value" id="statMastery">—</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Best Reward</span>
+                        <span class="stat-value" id="statBestReward">—</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Worst Reward</span>
+                        <span class="stat-value" id="statWorstReward">—</span>
+                    </div>
+                    <div class="stat-card full-width">
+                        <span class="stat-label">Frustration Events</span>
+                        <span class="stat-value" id="statFrustrations">—</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Frontend logic connection -->
+    <script src="./front.js"></script>
+</body>
+
+</html>

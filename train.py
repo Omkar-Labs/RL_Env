@@ -192,19 +192,21 @@ def evaluate(model, num_episodes: int = 100):
 
     avg_reward = sum(total_rewards) / len(total_rewards)
     mastery_pct = mastery_hits / num_episodes * 100
+    best_reward = max(total_rewards)
+    worst_reward = min(total_rewards)
 
     print("\n" + "=" * 60)
     print("  EVALUATION RESULTS")
     print("=" * 60)
     print(f"  Episodes:             {num_episodes}")
     print(f"  Avg Reward:           {avg_reward:.3f}")
-    print(f"  Best Reward:          {max(total_rewards):.3f}")
-    print(f"  Worst Reward:         {min(total_rewards):.3f}")
+    print(f"  Best Reward:          {best_reward:.3f}")
+    print(f"  Worst Reward:         {worst_reward:.3f}")
     print(f"  Mastery Rate:         {mastery_pct:.1f}%")
     print(f"  Frustration Events:   {total_frustrations}")
     print("=" * 60)
 
-    return avg_reward, mastery_pct
+    return avg_reward, mastery_pct, best_reward, worst_reward, total_frustrations
 
 
 # ======================================================================
@@ -246,9 +248,16 @@ def train(total_timesteps: int = 100_000):
     print(f"\nModel saved to: {save_path}.zip")
 
     # Evaluate
-    evaluate(model, num_episodes=200)
+    avg_reward, mastery_pct, best_reward, worst_reward, total_frustrations = evaluate(model, num_episodes=200)
 
-    return model
+    return {
+        "avg_reward": round(avg_reward, 3),
+        "mastery_pct": round(mastery_pct, 1),
+        "best_reward": round(best_reward, 3),
+        "worst_reward": round(worst_reward, 3),
+        "total_frustrations": total_frustrations,
+        "episodes": 200,
+    }
 
 
 if __name__ == "__main__":
