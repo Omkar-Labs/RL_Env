@@ -20,8 +20,8 @@ for subject, subs in TOPICS.items():
 
 NUM_SUBTOPICS = len(ALL_SUBTOPICS)   # 9 subtopics total
 NUM_DIFFICULTY = 3                    # 0=Easy, 1=Medium, 2=Hard
-MAX_STEPS = NUM_SUBTOPICS * 25        # max questions per tutoring session (~25 per topic)
-MASTERY_THRESHOLD = 0.8               # knowledge >= 0.8 means mastered
+MAX_STEPS = NUM_SUBTOPICS * 50        # Moderated for 50%+ mastery target (200 total)
+MASTERY_THRESHOLD = 0.75              # knowledge >= 0.8 means mastered
 # FRONTEND INPUT: all 4 constants above will auto-update if you make
 # TOPICS dynamic. MAX_STEPS & MASTERY_THRESHOLD can also come from user
 # e.g. user selects "session length = 40" or "mastery bar = 0.9"
@@ -41,7 +41,7 @@ class StudentSimulator:
 
     def __init__(self, initial_knowledge: dict[str, float] | None = None):
         # Per-subtopic knowledge in [0.0, 1.0]
-        self.decay_rate = 0.005
+        self.decay_rate = 0.015  # Realistic decay (1.0%) for Hackathon calibration (Mastery < 100%)
         self.last_practiced: dict[str, int] = {sub: 0 for sub in ALL_SUBTOPICS}
         if initial_knowledge is not None:
             self.knowledge = dict(initial_knowledge)
@@ -58,6 +58,10 @@ class StudentSimulator:
         # Hint tracking: how many times each subtopic got hinted consecutively
         self.hint_streak: dict[str, int] = {sub: 0 for sub in ALL_SUBTOPICS}
         self.last_hinted_subtopic: str | None = None
+        
+        # Anti-farming state tracking
+        self.has_ever_mastered: dict[str, bool] = {sub: False for sub in ALL_SUBTOPICS}
+        self.highest_knowledge: dict[str, float] = dict(self.knowledge)
 
     # ------------------------------------------------------------------
     # respond — the core method: student attempts a question
@@ -87,12 +91,12 @@ class StudentSimulator:
             else:
                 self.last_practiced[sub] += 1
         # --- Probability of correct answer ---
-        # Base probability from knowledge vs difficulty
-        base_prob = max(0.0, min(1.0, knowledge_before + 0.3 - 0.4 * difficulty_norm))
+        # Base probability: lowered base offset to make random guessing harder
+        base_prob = max(0.0, min(1.0, knowledge_before + 0.15 - 0.45 * difficulty_norm))
 
-        # Hints boost probability by ~20%
+        # Hints boost probability by ~25% to make hints highly necessary early on
         if hint_given:
-            base_prob = min(1.0, base_prob + 0.2)
+            base_prob = min(1.0, base_prob + 0.25)
 
         # Frustration drags probability down
         base_prob = max(0.0, base_prob - 0.15 * self.frustration)
@@ -128,10 +132,10 @@ class StudentSimulator:
                 learning_gain = 0.0
             elif gap < -0.2:
                 # Question was too easy -> minimal reinforcement
-                learning_gain = 0.02
+                learning_gain = 0.01  # Reduced
             else:
                 # ZPD Zone -> strong learning
-                learning_gain = 0.05 + 0.10 * difficulty_norm
+                learning_gain = 0.02 + 0.05 * difficulty_norm  # Increased for Moderate difficulty calibration
 
             if hint_given:
                 # Learning is slightly less if student needed a hint
@@ -142,45 +146,54 @@ class StudentSimulator:
                 learning_gain = 0.0
             else:
                 # Still learn a little from attempting
-                learning_gain = 0.03
+                learning_gain = 0.015  # Reduced from 0.03
 
         knowledge_after = min(1.0, round(knowledge_before + learning_gain, 4))
         self.knowledge[subtopic] = knowledge_after
 
-        # Did the student just master this subtopic?
-        mastered = (knowledge_after >= MASTERY_THRESHOLD and
-                    knowledge_before < MASTERY_THRESHOLD)
+        # High-water mark learning logic to prevent knowledge decay abuse
+        old_high = self.highest_knowledge[subtopic]
+        delta_high = max(0.0, knowledge_after - old_high)
+        self.highest_knowledge[subtopic] = max(old_high, knowledge_after)
 
-        # --- Frustration update ---
-        # Gap between difficulty and student ability drives frustration
-        if gap > 0.3:
-            # Question is significantly above student level → frustration rises
+        # Did the student just master this subtopic for the VERY FIRST TIME?
+        mastered = False
+        if knowledge_after >= MASTERY_THRESHOLD and not self.has_ever_mastered[subtopic]:
+            self.has_ever_mastered[subtopic] = True
+            mastered = True
+
+        # --- Balanced Frustration logic (ZPD based) ---
+        gap = difficulty_norm - knowledge_before
+        if gap > 0.4:
+            # Overwhelmed -> frustration rises
             self.frustration = min(1.0, self.frustration + 0.15 * gap)
         elif gap < -0.1:
-            # Question is easy → frustration decays
+            # Easy/Review questions -> frustration decays
             self.frustration = max(0.0, self.frustration - 0.1)
         else:
-            # ZPD zone → slight decay
+            # ZPD Zone -> frustration slowly decays
             self.frustration = max(0.0, self.frustration - 0.05)
 
-        # Extra frustration if student got it wrong
+        # Extra frustration jump if student got it wrong
         if not correct:
-            self.frustration = min(1.0, self.frustration + 0.1)
+            self.frustration = min(1.0, self.frustration + 0.12)
         
         # --- Knowledge decay ---
         current_decay_rate = self.decay_rate
-        if self.frustration > 0.8:
-            current_decay_rate = current_decay_rate * 3.0  # Panic! Fast forgetting
+        if self.frustration > 0.7:
+            current_decay_rate = current_decay_rate * 0.3
+        
 
         for sub in ALL_SUBTOPICS:
-            if self.last_practiced[sub] > 0:
-                if self.knowledge[sub] >= MASTERY_THRESHOLD:
-                    self.knowledge[sub] = self.knowledge[sub]*(1.0-current_decay_rate/10.0)
-                    self.knowledge[sub] = max(0.0, self.knowledge[sub])
+            if self.last_practiced[sub] > 5:
+                if self.has_ever_mastered[sub]:
+                    # DURABLE KNOWLEDGE: Once mastered, decay is minimal (1/15th of normal)
+                    self.knowledge[sub] = self.knowledge[sub] * (1.0 - current_decay_rate / 15.0)
                 else:
-                    self.knowledge[sub] = self.knowledge[sub]*(1.0-current_decay_rate)
-                    self.knowledge[sub] = max(0.0, self.knowledge[sub])
-                    
+                    # NORMAL DECAY: High stakes to keep practicing unmastered topics
+                    self.knowledge[sub] = self.knowledge[sub] * (1.0 - current_decay_rate)
+                self.knowledge[sub] = max(0.0, self.knowledge[sub])
+                
 
         frustrated = self.frustration >= self.frustration_threshold
 
@@ -192,6 +205,7 @@ class StudentSimulator:
             "repetitive_hint": repetitive_hint,
             "knowledge_before": knowledge_before,
             "knowledge_after": self.knowledge[subtopic],
+            "highest_knowledge_delta": delta_high,
         }
 
     def reset(self, initial_knowledge: dict[str, float] | None = None):
@@ -207,6 +221,9 @@ class StudentSimulator:
         self.hint_streak = {sub: 0 for sub in ALL_SUBTOPICS}
         self.last_hinted_subtopic = None
         self.last_practiced = {sub: 0 for sub in ALL_SUBTOPICS}
+        
+        self.has_ever_mastered = {sub: False for sub in ALL_SUBTOPICS}
+        self.highest_knowledge = dict(self.knowledge)
 
 
 # ======================================================================
@@ -270,7 +287,6 @@ class TutorEnv(Environment):
             raise RuntimeError("Episode is done. Call reset() first.")
 
         self.steps_taken += 1
-
         # --- 1. Decode the action ---
         subtopic_index = action.subtopic_index % NUM_SUBTOPICS
         difficulty = action.difficulty_level % NUM_DIFFICULTY  # 0, 1, 2
@@ -282,44 +298,57 @@ class TutorEnv(Environment):
         # --- 2. Student responds ---
         result = self.student.respond(subtopic, difficulty, hint_given)
 
-        # --- 3. Calculate reward ---
+        # --- 3. Calculate reward (STRICT Meta Hackaton Grading [0.0 - 1.0]) ---
         reward = 0.0
 
-        # (a) Time/step penalty — every step costs a little
-        reward -= 0.05
+        knowledge_before = result["knowledge_before"]
+        learning_gain = result["knowledge_after"] - result["knowledge_before"]
 
-        # (b) Correct answer rewards
+        # (1) Bonus for progress (THE DENSE GRADIENT)
+        # We reward ANY improvement to help the agent fight decay "uphill" 
+        # reward only proportional to real learning
+        reward += learning_gain * 3.0
+
+        # (2) Correctness incentive
         if result["correct"]:
-            if result["hint_used"]:
-                reward += 0.4      # correct after hint
-            else:
-                reward += 0.1      # correct without hint
-        
-        # (c) Mastery bonus — student just crossed the threshold
+            reward += 0.1
+
+        # (3) MILESTONE: One-time Mastery (The "A+" score)
+        # This only triggers once per subtopic via the student simulator
         if result["mastered"]:
-            reward += 1.0
+            reward = 1.0  
 
-        # (d) Frustration penalty
+        # (4) ANTI-FARMING: Disqualify repeating what is already "Done"
+        if self.student.has_ever_mastered[subtopic] and learning_gain < 0.005:
+            reward -= 0.1
+
+        # (5) Penalties (Empathetic Tutor Weighting)
         if result["frustrated"]:
-            reward -= 0.8
-
-        # (e) Repetitive hinting penalty
+            reward -= 0.4  # Increased penalty to force the agent to "Easy" questions when student is stressed
+            
         if result["repetitive_hint"]:
-            reward -= 0.2
+            reward -= 0.1
+        if learning_gain < 0.01:
+            reward -= 0.1
 
-        # (f) Knowledge delta bonus — reward improvement in knowledge
-        delta_knowledge = result["knowledge_after"] - result["knowledge_before"]
-        reward += delta_knowledge * 2.0   # scale factor to make delta meaningful
+        num_mastered = sum(self.student.has_ever_mastered.values())
+        reward += 0.03 * num_mastered
+        # (6) Time Penalty (Efficiency)
+        reward -= 0.02
 
-        reward = round(reward, 4)
+        # (7) Completion (Perfect Score - Based on HISTORY checklist)
+        all_mastered = all(self.student.has_ever_mastered.values())
+        if all_mastered:
+            reward = 1.0  
+            self.done = True
 
-        # --- 4. Check termination ---
-        all_mastered = all(
-            v >= MASTERY_THRESHOLD for v in self.student.knowledge.values()
-        )
         truncated = self.steps_taken >= MAX_STEPS
-        self.done = all_mastered or truncated
+        self.done = self.done or truncated
 
+        if truncated and not all_mastered:
+            reward=0.0
+        # (8) STRICT META HACKATON CLAMP [0.0, 1.0]
+        reward = float(max(0.0, min(1.0, reward)))
         # --- 5. Build observation & info ---
         observation = self._build_observation()
         info = {
@@ -330,7 +359,7 @@ class TutorEnv(Environment):
             "frustrated": result["frustrated"],
             "mastered": result["mastered"],
             "repetitive_hint": result["repetitive_hint"],
-            "knowledge_delta": delta_knowledge,
+            "knowledge_delta": result["highest_knowledge_delta"],
             "learning_gain": result["knowledge_after"] - result["knowledge_before"],
             "all_mastered": all_mastered,
             "steps_taken": self.steps_taken,
@@ -356,5 +385,6 @@ class TutorEnv(Environment):
         """Build an observation the agent can see."""
         return TutorObservation(
             knowledge_levels=list(self.student.knowledge.values()),
+            has_ever_mastered=list(self.student.has_ever_mastered.values()),
             steps_remaining=MAX_STEPS - self.steps_taken,
         )

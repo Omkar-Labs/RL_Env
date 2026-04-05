@@ -54,8 +54,8 @@ class TutorGymEnv(gym.Env):
         self.action_space = spaces.Discrete(self.num_actions)
 
         # --- Observation space ---
-        # 9 knowledge levels + 1 steps_remaining (normalized) + 1 frustration
-        obs_size = NUM_SUBTOPICS + 2
+        # 4 knowledge levels + 4 mastery flags + 1 steps_remaining (normalized) + 1 frustration
+        obs_size = (NUM_SUBTOPICS * 2) + 2
         self.observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(obs_size,), dtype=np.float32
         )
@@ -75,11 +75,12 @@ class TutorGymEnv(gym.Env):
     def _make_obs(self, openenv_obs, frustration: float = 0.0) -> np.ndarray:
         """Convert OpenEnv observation → numpy array for SB3."""
         knowledge = np.array(openenv_obs.knowledge_levels, dtype=np.float32)
+        mastery = np.array(openenv_obs.has_ever_mastered, dtype=np.float32)
         steps_norm = np.array(
             [openenv_obs.steps_remaining / MAX_STEPS], dtype=np.float32
         )
         frust = np.array([frustration], dtype=np.float32)
-        return np.concatenate([knowledge, steps_norm, frust])
+        return np.concatenate([knowledge, mastery, steps_norm, frust])
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -261,4 +262,6 @@ def train(total_timesteps: int = 100_000):
 
 
 if __name__ == "__main__":
+    
     train(total_timesteps=100_000)
+    

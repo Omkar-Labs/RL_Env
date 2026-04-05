@@ -11,7 +11,8 @@ class TutorAction(Action):
 
 class TutorObservation(Observation):
     """What the agent can see after each step."""
-    knowledge_levels: list[float] = []   # 9 floats [0.0–1.0]
+    knowledge_levels: list[float] = []      # n floats [0.0–1.0]
+    has_ever_mastered: list[bool] = []     # n booleans
     steps_remaining: int = 0
 
 
