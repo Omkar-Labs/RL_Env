@@ -1,0 +1,15 @@
+# Core API
+fastapi==0.135.3
+uvicorn==0.43.0
+pydantic==2.12.5
+
+# RL Environment & Training
+gymnasium==1.2.3
+stable_baselines3==2.8.0
+numpy==2.4.4
+torch==2.11.0
+openenv==0.1.13
+openenv-core==0.2.3
+
+# Utilities
+python-dotenv==1.2.2
