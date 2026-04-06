@@ -1,0 +1,24 @@
+name: cognitive-tutor-env
+description: RL environment simulating adaptive tutoring with student cognition
+
+entrypoint: env.tutor_env:TutorEnv
+
+observation_space:
+  knowledge_levels: list[float]
+  has_ever_mastered: list[bool]
+  steps_remaining: int
+
+action_space:
+  subtopic_index: int
+  difficulty_level: int
+  hint_given: bool
+
+reward_range: [0.0, 1.0]
+
+tasks:
+  - name: easy
+    description: Low difficulty, faster mastery
+  - name: medium
+    description: Balanced learning difficulty
+  - name: hard
+    description: High decay, slower learning

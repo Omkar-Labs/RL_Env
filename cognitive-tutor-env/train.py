@@ -12,14 +12,15 @@ from gymnasium import spaces
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
-from my_environment import (
-    TutorEnv,
+from env.tutor_env import TutorEnv
+from env.student_simulator import (
     NUM_SUBTOPICS,
     NUM_DIFFICULTY,
     MAX_STEPS,
     ALL_SUBTOPICS,
 )
 from models import TutorAction
+
 
 
 # ======================================================================
@@ -108,7 +109,6 @@ class TutorGymEnv(gym.Env):
 # ======================================================================
 class TrainingLogger(BaseCallback):
     """Logs training metrics every `log_interval` steps."""
-
     def __init__(self, log_interval: int = 5000, verbose=0):
         super().__init__(verbose)
         self.log_interval = log_interval
@@ -162,60 +162,6 @@ class TrainingLogger(BaseCallback):
 
         return True
 
-
-# ======================================================================
-# Evaluation — test the trained model
-# ======================================================================
-def evaluate(model, num_episodes: int = 100):
-    """Run the trained model for `num_episodes` and print results."""
-    env = TutorGymEnv()
-    total_rewards = []
-    mastery_hits = 0
-    total_frustrations = 0
-
-    for ep in range(num_episodes):
-        obs, info = env.reset()
-        done = False
-        ep_reward = 0.0
-
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, info = env.step(action)
-            ep_reward += reward
-            done = terminated or truncated
-
-            if info.get("frustrated", False):
-                total_frustrations += 1
-
-        total_rewards.append(ep_reward)
-        if info.get("all_mastered", False):
-            mastery_hits += 1
-
-    avg_reward = sum(total_rewards) / len(total_rewards)
-    mastery_pct = mastery_hits / num_episodes * 100
-    best_reward = max(total_rewards)
-    worst_reward = min(total_rewards)
-
-    print("\n" + "=" * 60)
-    print("  EVALUATION RESULTS")
-    print("=" * 60)
-    print(f"  Episodes:             {num_episodes}")
-    print(f"  Avg Reward:           {avg_reward:.3f}")
-    print(f"  Best Reward:          {best_reward:.3f}")
-    print(f"  Worst Reward:         {worst_reward:.3f}")
-    print(f"  Mastery Rate:         {mastery_pct:.1f}%")
-    print(f"  Frustration Events:   {total_frustrations}")
-    print("=" * 60)
-
-    return avg_reward, mastery_pct, best_reward, worst_reward, total_frustrations
-
-
-# ======================================================================
-# Main
-# ======================================================================
-# FRONTEND INPUT: Accept total_timesteps, learning_rate, etc. from frontend.
-# e.g. user picks "training intensity = high" → total_timesteps=200_000
-# Create an API route like POST /train that calls train(total_timesteps=user_value)
 def train(total_timesteps: int = 100_000):
     env = TutorGymEnv()
 
@@ -243,25 +189,14 @@ def train(total_timesteps: int = 100_000):
     model.learn(total_timesteps=total_timesteps, callback=logger)
 
     # Save model
-    save_dir = os.path.dirname(os.path.abspath(__file__))
-    save_path = os.path.join(save_dir, "ppo_cognitive_tutor")
+    save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints")
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, "ppo_model")
     model.save(save_path)
     print(f"\nModel saved to: {save_path}.zip")
 
-    # Evaluate
-    avg_reward, mastery_pct, best_reward, worst_reward, total_frustrations = evaluate(model, num_episodes=200)
-
-    return {
-        "avg_reward": round(avg_reward, 3),
-        "mastery_pct": round(mastery_pct, 1),
-        "best_reward": round(best_reward, 3),
-        "worst_reward": round(worst_reward, 3),
-        "total_frustrations": total_frustrations,
-        "episodes": 200,
-    }
 
 
 if __name__ == "__main__":
-    
     train(total_timesteps=100_000)
     
