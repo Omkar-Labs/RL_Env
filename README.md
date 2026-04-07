@@ -1,3 +1,13 @@
+---
+title: Cognitive Tutor RL Environment
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: "4.36.0"
+app_file: app.py
+pinned: false
+---
 # 🚀 Cognitive Tutor RL Environment (OpenEnv)
 
 An AI-powered tutoring simulation environment built using reinforcement learning principles. This environment models realistic student learning behavior and challenges agents to act as an intelligent tutor that maximizes student mastery while minimizing frustration.

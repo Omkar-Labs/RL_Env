@@ -2,8 +2,7 @@
 # RL Environment & Training
 gymnasium==1.2.3
 stable_baselines3==2.8.0
-numpy==2.4.4
+numpy==1.26.4
 torch==2.11.0
 openenv==0.1.13
 openenv-core==0.2.3
-gradio
