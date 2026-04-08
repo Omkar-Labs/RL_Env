@@ -1,44 +1,46 @@
 name: cognitive-tutor-env
-description: RL environment simulating adaptive tutoring with student cognition
+description: >
+  A reinforcement learning environment simulating an adaptive cognitive tutor.
+  The agent selects subtopics, difficulty levels, and hint strategies to optimize
+  student learning, minimize frustration, and achieve mastery.
 
-entrypoint: env.tutor_env:TutorEnv
+entry_point: env.tutor_env:TutorEnv
 
-observation_space:
-  knowledge_levels: list[float]
-  has_ever_mastered: list[bool]
-  steps_remaining: int
+max_steps: 200
 
 action_space:
-  subtopic_index: int
-  difficulty_level: int
-  hint_given: bool
+  type: object
+  properties:
+    subtopic_index:
+      type: integer
+      minimum: 0
+      maximum: 3
+    difficulty_level:
+      type: integer
+      minimum: 0
+      maximum: 2
+    hint_given:
+      type: boolean
+
+observation_space:
+  type: object
+  properties:
+    knowledge_levels:
+      type: array
+      items:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+    has_ever_mastered:
+      type: array
+      items:
+        type: boolean
+    steps_remaining:
+      type: integer
 
 reward_range: [0.0, 1.0]
 
-tasks:
-  - name: easy
-    description: >
-      Forgiving student — low knowledge decay, wide ZPD, mastery at 0.60.
-      Agent should achieve >75% curriculum mastery.
-    grader: agent
-    max_score: 1.0
-    params:
-      difficulty: easy
-
-  - name: medium
-    description: >
-      Balanced student — moderate decay, standard ZPD, mastery at 0.75.
-      Agent should achieve >45% curriculum mastery.
-    grader: agent
-    max_score: 1.0
-    params:
-      difficulty: medium
-
-  - name: hard
-    description: >
-      Struggling student — high decay, tight ZPD, mastery at 0.85.
-      Agent should achieve >20% curriculum mastery.
-    grader: agent
-    max_score: 1.0
-    params:
-      difficulty: hard
+episode_termination:
+  conditions:
+    - all_subtopics_mastered
+    - max_steps_reached
