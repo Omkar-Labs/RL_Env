@@ -1,4 +1,5 @@
 import numpy as np
+import os
 from env.student_simulator import NUM_SUBTOPICS, NUM_DIFFICULTY
 from train import TutorGymEnv
 from agents import get_random_action, get_heuristic_action, get_ppo_predict_fn
@@ -11,8 +12,6 @@ def evaluate_custom(agent_name, predict_fn, num_episodes=100):
     
     print(f"\nEvaluating {agent_name}...")
     for _ in range(num_episodes):
-        obs, info = env.reset()[0], env.reset()[1] # OpenEnv reset returns (obs, info)
-        # However, TutorGymEnv (Gymnasium) reset returns (obs, info)
         obs, info = env.reset()
         done = False
         ep_reward = 0.0
@@ -55,8 +54,9 @@ if __name__ == "__main__":
     evaluate_custom("Simple Heuristic Agent", get_heuristic_action, num_episodes=100)
     
     # 3. Trained PPO Agent
-    ppo_fn = get_ppo_predict_fn("cognitive-tutor-env/checkpoints/ppo_model")
-    if ppo_fn:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.exists(os.path.join(script_dir, "checkpoints", "ppo_model.zip")):
+        ppo_fn = get_ppo_predict_fn(os.path.join(script_dir, "checkpoints", "ppo_model"))
         evaluate_custom("Trained PPO Agent", ppo_fn, num_episodes=100)
     else:
         print("\n[!] Skipping PPO Agent: Model not found at checkpoints/ppo_model.")

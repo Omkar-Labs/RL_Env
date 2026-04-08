@@ -1,7 +1,7 @@
 from env.tutor_env import TutorEnv
 from env.student_simulator import NUM_SUBTOPICS, NUM_DIFFICULTY
 from models import TutorAction
-from agents import HeuristicAgent, RandomAgent
+from agents import HeuristicAgent
 
 # Optional PPO
 try:
@@ -33,13 +33,13 @@ def run_demo():
     
     # Simple observation conversion for agents (since they expect knowledge_levels list)
     # The current obs from env.reset() is a TutorObservation object.
-    obs = obs_raw.knowledge_levels + obs_raw.has_ever_mastered + [obs_raw.steps_remaining/200.0] + [0.0]
+    obs = obs_raw.knowledge_levels + obs_raw.has_ever_mastered + [obs_raw.steps_remaining/90.0] + [0.0]
 
     # Choose agent
     agent = None
     if USE_PPO:
         try:
-            agent = PPOAgent("checkpoints/ppo_model")
+            agent = PPOAgent("cognitive-tutor-env/checkpoints/ppo_model")
             print("Using PPO Agent\n")
         except:
             print("PPO model not found → using Heuristic Agent\n")
@@ -64,14 +64,14 @@ def run_demo():
         obs_raw, reward, done, info = env.step(action)
         
         # 4. Update observation for next step
-        obs = obs_raw.knowledge_levels + obs_raw.has_ever_mastered + [obs_raw.steps_remaining/200.0] + [info.get('frustration_level', 0.0)]
+        obs = obs_raw.knowledge_levels + obs_raw.has_ever_mastered + [obs_raw.steps_remaining/90.0] + [info.get('frustration_level', 0.0)]
 
         print(f"\nStep {step}")
         print("-" * 30)
         print(f"Subtopic       : {info['subtopic']}")
         print(f"Difficulty     : {info['difficulty']}")
-        print(f"Hint Given     : {info['hint_given']}")
-        print(f"Correct        : {info['student_correct']}")
+        print(f"Hint Given     : {info.get('hint_given', False)}")
+        print(f"Correct        : {info.get('correct', False)}")
         print(f"Learning Gain  : {round(info['learning_gain'], 4)}")
         print(f"Frustrated     : {info['frustrated']}")
         print(f"Reward         : {round(reward, 3)}")

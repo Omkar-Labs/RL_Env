@@ -1,0 +1,44 @@
+name: cognitive-tutor-env
+description: RL environment simulating adaptive tutoring with student cognition
+
+entrypoint: env.tutor_env:TutorEnv
+
+observation_space:
+  knowledge_levels: list[float]
+  has_ever_mastered: list[bool]
+  steps_remaining: int
+
+action_space:
+  subtopic_index: int
+  difficulty_level: int
+  hint_given: bool
+
+reward_range: [0.0, 1.0]
+
+tasks:
+  - name: easy
+    description: >
+      Forgiving student — low knowledge decay, wide ZPD, mastery at 0.60.
+      Agent should achieve >75% curriculum mastery.
+    grader: agent
+    max_score: 1.0
+    params:
+      difficulty: easy
+
+  - name: medium
+    description: >
+      Balanced student — moderate decay, standard ZPD, mastery at 0.75.
+      Agent should achieve >45% curriculum mastery.
+    grader: agent
+    max_score: 1.0
+    params:
+      difficulty: medium
+
+  - name: hard
+    description: >
+      Struggling student — high decay, tight ZPD, mastery at 0.85.
+      Agent should achieve >20% curriculum mastery.
+    grader: agent
+    max_score: 1.0
+    params:
+      difficulty: hard

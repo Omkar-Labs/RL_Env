@@ -2,7 +2,7 @@
 train.py — PPO training for the Cognitive Tutor using stable-baselines3.
 
 Wraps TutorEnv (OpenEnv) into a standard Gymnasium env so SB3 can train on it.
-Trains for 100,000 timesteps with PPO, then evaluates the trained model.
+Trains for 300,000 timesteps with PPO, then evaluates the trained model.
 """
 
 import os
@@ -16,11 +16,10 @@ from env.tutor_env import TutorEnv
 from env.student_simulator import (
     NUM_SUBTOPICS,
     NUM_DIFFICULTY,
-    MAX_STEPS,
+    TASK_CONFIGS,
     ALL_SUBTOPICS,
 )
 from models import TutorAction
-
 
 
 # ======================================================================
@@ -31,31 +30,28 @@ class TutorGymEnv(gym.Env):
     Wraps the OpenEnv TutorEnv into a standard Gymnasium environment
     so stable-baselines3 PPO can train on it.
 
-    Action space (MultiDiscrete):
-        [subtopic_index (0-8), difficulty (0-2), hint (0-1)]
-        Flattened as a single Discrete(54) for PPO compatibility.
+    Action space (Discrete):
+        Flattened: subtopic × difficulty × hint = NUM_SUBTOPICS * 3 * 2
 
     Observation space (Box):
-        [9 knowledge levels (0-1), steps_remaining (0-30), frustration (0-1)]
-        = 11 floats total
+        [N knowledge levels, N mastery flags, steps_remaining_norm, frustration]
     """
 
     metadata = {"render_modes": []}
 
-    def __init__(self):
+    def __init__(self, task_name: str = "medium"):
         super().__init__()
-        self.env = TutorEnv()
-        # FRONTEND INPUT: If TOPICS becomes dynamic (user-provided), NUM_SUBTOPICS
-        # changes → action_space and obs_space sizes change automatically here.
-        # No manual change needed in this wrapper if you update the globals in my_environment.py
+        self.task_name = task_name
+        self.cfg = TASK_CONFIGS[task_name]
+        self.max_steps = self.cfg["max_steps"]
+        self.env = TutorEnv(task_name=task_name)
 
         # --- Action space ---
-        # 9 subtopics × 3 difficulties × 2 hint options = 54 discrete actions
         self.num_actions = NUM_SUBTOPICS * NUM_DIFFICULTY * 2
         self.action_space = spaces.Discrete(self.num_actions)
 
         # --- Observation space ---
-        # 4 knowledge levels + 4 mastery flags + 1 steps_remaining (normalized) + 1 frustration
+        # N knowledge levels + N mastery flags + 1 steps_remaining (norm) + 1 frustration
         obs_size = (NUM_SUBTOPICS * 2) + 2
         self.observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(obs_size,), dtype=np.float32
@@ -78,7 +74,7 @@ class TutorGymEnv(gym.Env):
         knowledge = np.array(openenv_obs.knowledge_levels, dtype=np.float32)
         mastery = np.array(openenv_obs.has_ever_mastered, dtype=np.float32)
         steps_norm = np.array(
-            [openenv_obs.steps_remaining / MAX_STEPS], dtype=np.float32
+            [openenv_obs.steps_remaining / self.max_steps], dtype=np.float32
         )
         frust = np.array([frustration], dtype=np.float32)
         return np.concatenate([knowledge, mastery, steps_norm, frust])
@@ -92,9 +88,7 @@ class TutorGymEnv(gym.Env):
         tutor_action = self._decode_action(int(action))
         obs, reward, done, info = self.env.step(tutor_action)
 
-        # Get frustration from info for observation
         frustration = info.get("frustration_level", 0.0)
-
         np_obs = self._make_obs(obs, frustration)
 
         # Gymnasium expects (obs, reward, terminated, truncated, info)
@@ -120,18 +114,15 @@ class TrainingLogger(BaseCallback):
         self.current_ep_length = 0
 
     def _on_step(self) -> bool:
-        # Accumulate rewards
         self.current_ep_reward += self.locals["rewards"][0]
         self.current_ep_length += 1
 
-        # Check if episode ended
         dones = self.locals.get("dones", self.locals.get("done", [False]))
         if dones[0]:
             self.episode_rewards.append(self.current_ep_reward)
             self.episode_lengths.append(self.current_ep_length)
             self.episode_count += 1
 
-            # Check mastery from info
             infos = self.locals.get("infos", [{}])
             if infos[0].get("all_mastered", False):
                 self.mastery_count += 1
@@ -139,9 +130,8 @@ class TrainingLogger(BaseCallback):
             self.current_ep_reward = 0.0
             self.current_ep_length = 0
 
-        # Log periodically
         if self.num_timesteps % self.log_interval == 0 and len(self.episode_rewards) > 0:
-            recent = self.episode_rewards[-100:]  # last 100 episodes
+            recent = self.episode_rewards[-100:]
             avg_r = sum(recent) / len(recent)
             recent_len = self.episode_lengths[-100:]
             avg_len = sum(recent_len) / len(recent_len)
@@ -162,11 +152,14 @@ class TrainingLogger(BaseCallback):
 
         return True
 
-def train(total_timesteps: int = 100_000):
-    env = TutorGymEnv()
+
+def train(total_timesteps: int = 300_000, task_name: str = "medium"):
+    env = TutorGymEnv(task_name=task_name)
 
     print("=" * 60)
     print(f"  TRAINING COGNITIVE TUTOR WITH PPO — {total_timesteps:,} timesteps")
+    print(f"  Task difficulty:   {task_name}")
+    print(f"  Max steps/episode: {env.max_steps}")
     print(f"  Action space:      {env.action_space}")
     print(f"  Observation space: {env.observation_space}")
     print("=" * 60)
@@ -181,7 +174,7 @@ def train(total_timesteps: int = 100_000):
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.2,
-        ent_coef=0.01,        # entropy bonus for exploration
+        ent_coef=0.05,        # moderate exploration
         verbose=0,
     )
 
@@ -196,7 +189,5 @@ def train(total_timesteps: int = 100_000):
     print(f"\nModel saved to: {save_path}.zip")
 
 
-
 if __name__ == "__main__":
-    train(total_timesteps=100_000)
-    
+    train(total_timesteps=300_000, task_name="medium")
